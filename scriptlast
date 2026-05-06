@@ -1,0 +1,328 @@
+--[[
+    ОБУЧАЮЩИЙ ESP + SPEED ДЛЯ DOORS (ОДИНОЧНАЯ ИГРА)
+    - Enter: открыть/закрыть меню, освобождает курсор
+    - Ползунок скорости (1–20)
+    - ESP: сущности, предметы, шкафы, двери
+    ТОЛЬКО ДЛЯ ЛОКАЛЬНОГО ИЗУЧЕНИЯ.
+]]
+
+-- Сервисы
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local CoreGui = game:GetService("CoreGui") -- или Players.LocalPlayer:WaitForChild("PlayerGui")
+local LocalPlayer = Players.LocalPlayer
+
+-- ==================== НАСТРОЙКИ ====================
+local DEFAULT_SPEED = 16
+local MIN_SPEED = 1
+local MAX_SPEED = 20
+
+-- Цвета ESP
+local COLORS = {
+    ENTITY = Color3.fromRGB(255, 80, 80),    -- красный
+    ITEM = Color3.fromRGB(80, 255, 200),      -- бирюзовый
+    HIDING = Color3.fromRGB(255, 255, 100),   -- жёлтый
+    DOOR = Color3.fromRGB(100, 180, 255),     -- синий
+    TRAP = Color3.fromRGB(255, 100, 255),     -- фиолетовый
+}
+
+-- Объекты для поиска (можно расширять)
+local ENTITY_NAMES = {"Rush", "Ambush", "Screech", "Figure", "Seek", "Halt", "Eyes", "Jack", "Hide", "Timothy"}
+local ITEM_NAMES = {"Key", "Battery", "Bandage", "Lockpick", "Vitamins", "Crucifix", "Coin", "Barrel", "Lighter"}
+local HIDING_NAMES = {"Wardrobe", "Bed", "Closet", "Cabinet"}
+local DOOR_NAMES = {"Door", "RoomDoor", "IronDoor", "Basement", "Hatch"}
+local TRAP_NAMES = {"Vent", "Hole", "Trapdoor", "Window"}
+
+-- ==================== СОЗДАНИЕ МЕНЮ ====================
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EducationalMenu"
+screenGui.Parent = PlayerGui -- или CoreGui (для надёжности)
+screenGui.IgnoreGuiInset = true
+screenGui.ResetOnSpawn = false
+
+-- Главный фрейм
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 300, 0, 180)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -90)
+mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Visible = false
+mainFrame.Parent = screenGui
+
+-- Заголовок
+local title = Instance.new("TextLabel")
+title.Name = "Title"
+title.Size = UDim2.new(1, 0, 0, 30)
+title.BackgroundTransparency = 1
+title.Text = "DOORS Educational Tool"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.SourceSansBold
+title.TextSize = 18
+title.Parent = mainFrame
+
+-- Ползунок скорости
+local speedLabel = Instance.new("TextLabel")
+speedLabel.Name = "SpeedLabel"
+speedLabel.Size = UDim2.new(1, 0, 0, 25)
+speedLabel.Position = UDim2.new(0, 0, 0, 40)
+speedLabel.BackgroundTransparency = 1
+speedLabel.Text = "Скорость: " .. DEFAULT_SPEED
+speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedLabel.Font = Enum.Font.SourceSans
+speedLabel.TextSize = 14
+speedLabel.Parent = mainFrame
+
+local speedSlider = Instance.new("TextBox") -- проще Slider, но для совместимости используем TextBox с ручным вводом или простой стандартный Slider. Сделаем Slider.
+-- Вместо TextBox используем кастомный ползунок из двух кнопок? Лучше стандартный Slider.
+-- В Roblox есть UI Slider (Frame с ползунком). Создадим вручную.
+
+local sliderFrame = Instance.new("Frame")
+sliderFrame.Name = "SliderFrame"
+sliderFrame.Size = UDim2.new(1, -40, 0, 20)
+sliderFrame.Position = UDim2.new(0, 20, 0, 70)
+sliderFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+sliderFrame.BorderSizePixel = 0
+sliderFrame.Parent = mainFrame
+
+local sliderBar = Instance.new("Frame")
+sliderBar.Name = "SliderBar"
+sliderBar.Size = UDim2.new(0, 0, 1, 0) -- будет управляться
+sliderBar.BackgroundColor3 = Color3.fromRGB(100, 200, 100)
+sliderBar.BorderSizePixel = 0
+sliderBar.Parent = sliderFrame
+
+local sliderButton = Instance.new("TextButton")
+sliderButton.Name = "SliderButton"
+sliderButton.Size = UDim2.new(0, 16, 1, 0)
+sliderButton.Position = UDim2.new(0, 0, 0, 0)
+sliderButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+sliderButton.BorderSizePixel = 0
+sliderButton.Text = ""
+sliderButton.AutoButtonColor = false
+sliderButton.Parent = sliderFrame
+
+-- Значение скорости
+local currentSpeed = DEFAULT_SPEED
+
+local function updateSliderFromSpeed()
+    local fraction = (currentSpeed - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+    local maxX = sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X
+    local x = fraction * maxX
+    sliderButton.Position = UDim2.new(0, x, 0, 0)
+    sliderBar.Size = UDim2.new(0, x + sliderButton.AbsoluteSize.X/2, 1, 0)
+    speedLabel.Text = "Скорость: " .. math.floor(currentSpeed)
+end
+
+-- Установка скорости персонажу
+local function applySpeed()
+    local char = LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            hum.WalkSpeed = currentSpeed
+        end
+    end
+end
+
+-- Обработчики ползунка
+local function moveSlider(input)
+    local sizeX = sliderFrame.AbsoluteSize.X - sliderButton.AbsoluteSize.X
+    local mouseX = input.Position.X - sliderFrame.AbsolutePosition.X - sliderButton.AbsoluteSize.X/2
+    local fraction = math.clamp(mouseX / sizeX, 0, 1)
+    currentSpeed = MIN_SPEED + fraction * (MAX_SPEED - MIN_SPEED)
+    currentSpeed = math.floor(currentSpeed * 10) / 10 -- округление до 1 десятой
+    updateSliderFromSpeed()
+    applySpeed()
+end
+
+sliderButton.MouseButton1Down:Connect(function()
+    -- Начинаем перетаскивание
+    local connection
+    connection = UserInputService.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement then
+            moveSlider(input)
+        end
+    end)
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            if connection then
+                connection:Disconnect()
+            end
+        end
+    end)
+end)
+
+-- Можно также двигать ползунок кликом по полоске
+sliderFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        moveSlider(input)
+        -- также зажать и двигать
+        local connection
+        connection = UserInputService.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseMovement then
+                moveSlider(input)
+            end
+        end)
+        UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
+                if connection then connection:Disconnect() end
+            end
+        end)
+    end
+end)
+
+updateSliderFromSpeed()
+
+-- Кнопка закрыть (или просто Enter)
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 60, 0, 25)
+closeButton.Position = UDim2.new(1, -70, 0, 5)
+closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+closeButton.Text = "Закрыть"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.Font = Enum.Font.SourceSans
+closeButton.TextSize = 14
+closeButton.Parent = mainFrame
+
+closeButton.MouseButton1Click:Connect(function()
+    setMenuVisible(false)
+end)
+
+-- Функция показа/скрытия меню с захватом мыши
+function setMenuVisible(visible)
+    mainFrame.Visible = visible
+    -- Управление мышью
+    if visible then
+        UserInputService.MouseBehavior = Enum.MouseBehavior.Default
+        UserInputService.MouseIconEnabled = true
+    else
+        UserInputService.MouseBehavior = Enum.MouseBehavior.LockCenter
+        UserInputService.MouseIconEnabled = false
+    end
+end
+
+-- Открытие по Enter
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Return then
+        setMenuVisible(not mainFrame.Visible)
+    end
+end)
+
+-- На старте скрыто
+setMenuVisible(false)
+
+-- Постоянно применяем скорость, т.к. персонаж может пересоздаваться
+LocalPlayer.CharacterAdded:Connect(function(char)
+    wait(0.1)
+    local hum = char:WaitForChild("Humanoid", 2)
+    if hum then
+        hum.WalkSpeed = currentSpeed
+    end
+end)
+-- применить к текущему персонажу, если есть
+if LocalPlayer.Character then
+    local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    if hum then hum.WalkSpeed = currentSpeed end
+end
+
+-- ==================== ESP ====================
+local espContainer = Instance.new("ScreenGui")
+espContainer.Name = "ESPContainer"
+espContainer.Parent = PlayerGui
+espContainer.IgnoreGuiInset = true
+espContainer.ResetOnSpawn = false
+
+local labelsPool = {}
+
+local function createEspLabel()
+    local lbl = Instance.new("TextLabel")
+    lbl.BackgroundTransparency = 1
+    lbl.Font = Enum.Font.SourceSansBold
+    lbl.TextSize = 13
+    lbl.TextStrokeTransparency = 0
+    lbl.Parent = espContainer
+    return lbl
+end
+
+local function clearEspLabels()
+    for _, lbl in pairs(labelsPool) do
+        lbl:Destroy()
+    end
+    table.clear(labelsPool)
+end
+
+local function isVisibleFrom(part, fromPos)
+    local rayDir = (part.Position - fromPos).Unit * 1000
+    local rayParams = RaycastParams.new()
+    rayParams.FilterDescendantsInstances = {LocalPlayer.Character or game}
+    rayParams.FilterType = Enum.RaycastFilterType.Exclude
+    local result = workspace:Raycast(fromPos, rayDir, rayParams)
+    return result and result.Instance == part
+end
+
+local function updateESP()
+    local char = LocalPlayer.Character
+    if not char or not char:FindFirstChild("Head") then
+        clearEspLabels()
+        return
+    end
+    local headPos = char.Head.Position
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+
+    -- Собираем все цели
+    local targets = {}
+    local allDescendants = workspace:GetDescendants()
+    for _, obj in ipairs(allDescendants) do
+        if obj:IsA("BasePart") and obj.Name ~= "Head" then
+            local name = obj.Name
+            local color = nil
+            if table.find(ENTITY_NAMES, name) then
+                color = COLORS.ENTITY
+            elseif table.find(ITEM_NAMES, name) then
+                color = COLORS.ITEM
+            elseif table.find(HIDING_NAMES, name) then
+                color = COLORS.HIDING
+            elseif table.find(DOOR_NAMES, name) then
+                color = COLORS.DOOR
+            elseif table.find(TRAP_NAMES, name) then
+                color = COLORS.TRAP
+            end
+            if color then
+                table.insert(targets, {part = obj, color = color})
+            end
+        end
+    end
+
+    clearEspLabels()
+    for _, target in ipairs(targets) do
+        local part = target.part
+        local distance = (part.Position - headPos).Magnitude
+        if distance < 300 then -- дальность отрисовки
+            if isVisibleFrom(part, headPos) then
+                local screenPos, onScreen = camera:WorldToScreenPoint(part.Position)
+                if onScreen then
+                    local lbl = createEspLabel()
+                    lbl.Position = UDim2.new(0, screenPos.X, 0, screenPos.Y)
+                    lbl.TextColor3 = target.color
+                    lbl.Text = string.format("%s [%dm]", part.Name, distance)
+                    table.insert(labelsPool, lbl)
+                end
+            end
+        end
+    end
+end
+
+RunService.RenderStepped:Connect(updateESP)
+
+-- Первичная очистка при старте, если персонаж уже есть
+updateESP()
+
+print("Образовательный скрипт загружен. Enter — меню, управляй скоростью.")
