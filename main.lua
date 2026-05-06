@@ -1,6 +1,6 @@
 --[[
-    ОБУЧАЮЩИЙ ESP + SPEED ДЛЯ DOORS
-    Enter — меню (освобождает курсор)
+    ОБУЧАЮЩИЙ ESP + SPEED
+    Правый Shift — меню (освобождает курсор)
     Ползунок — скорость 1–20
     ESP — сущности, предметы, шкафы, двери, ловушки
 ]]
@@ -161,10 +161,10 @@ sliderBg.InputBegan:Connect(function(input)
     end
 end)
 
--- Открытие по Enter
+-- Открытие по ПРАВОМУ Shift
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
-    if input.KeyCode == Enum.KeyCode.Return then
+    if input.KeyCode == Enum.KeyCode.RightShift then
         mainFrame.Visible = not mainFrame.Visible
         if mainFrame.Visible then
             UserInputService.MouseBehavior = Enum.MouseBehavior.Default
@@ -253,4 +253,4 @@ RunService.RenderStepped:Connect(function()
     end
 end)
 
-print("Скрипт загружен. Enter — меню.")
+print("Готово. Правый Shift — меню.")
